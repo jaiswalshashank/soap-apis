@@ -1,63 +1,86 @@
-/*
 package com.shasha.soapapis.config;
 
+import com.shasha.soapapis.dataacess.webservicesserver.NumberConversionSoapType;
+import org.apache.cxf.Bus;
+import org.apache.cxf.bus.spring.SpringBus;
+import org.apache.cxf.endpoint.Endpoint;
+import org.apache.cxf.ext.logging.LoggingFeature;
+import org.apache.cxf.jaxws.EndpointImpl;
 import org.apache.cxf.transport.servlet.CXFServlet;
+import org.apache.cxf.ws.security.wss4j.WSS4JInInterceptor;
+import org.apache.wss4j.common.ConfigurationConstants;
+import org.apache.wss4j.dom.WSConstants;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.ws.config.annotation.EnableWs;
 import org.springframework.ws.config.annotation.WsConfigurerAdapter;
-import org.springframework.ws.server.EndpointInterceptor;
-import org.springframework.ws.soap.security.xwss.XwsSecurityInterceptor;
-import org.springframework.ws.soap.security.xwss.callback.SimplePasswordValidationCallbackHandler;
-import org.springframework.ws.transport.http.MessageDispatcherServlet;
-import org.springframework.ws.wsdl.wsdl11.SimpleWsdl11Definition;
-import org.springframework.ws.wsdl.wsdl11.Wsdl11Definition;
 
-import java.util.Collections;
-import java.util.List;
+import javax.security.auth.callback.CallbackHandler;
+import java.util.HashMap;
+import java.util.Map;
 
-@EnableWs
+
 @Configuration
+@EnableWs
 public class ApplicationConfig extends WsConfigurerAdapter {
 
-    @Bean
-    public ServletRegistrationBean cfxServlet() {
-        return new ServletRegistrationBean<>(new CXFServlet(), "/soap-api/*");
-    }
 
-    @Bean(name = "ticketagent")
-    public Wsdl11Definition defaultWsdl11Definition() {
-        SimpleWsdl11Definition wsdl11Definition = new SimpleWsdl11Definition();
-        wsdl11Definition.setWsdl(new ClassPathResource("/wsdl/sample.wsdl"));
+	@Bean
+	public ServletRegistrationBean cxfServlet() {
+		return new ServletRegistrationBean(new CXFServlet(), "/wsi/*");
+	}
 
-        return wsdl11Definition;
-    }
+	@Bean(name = Bus.DEFAULT_BUS_ID)
+	public SpringBus springBus() {
+		return new SpringBus();
+	}
+
+	@Bean
+	public CallbackHandler usernameTokenCallback() {
+		return new WebServiceConfig();
+	}
 
 
-    @Bean
-    public XwsSecurityInterceptor securityInterceptor() {
-        XwsSecurityInterceptor securityInterceptor = new XwsSecurityInterceptor();
-        securityInterceptor.setCallbackHandler(callbackHandler());
-        securityInterceptor.setPolicyConfiguration(new ClassPathResource("securityPolicy.xml"));
-        return securityInterceptor;
-    }
+	@Bean(name = Bus.DEFAULT_BUS_ID)
+	public SpringBus springBus(LoggingFeature loggingFeature) {
 
-    @Bean
-    SimplePasswordValidationCallbackHandler callbackHandler() {
-        SimplePasswordValidationCallbackHandler callbackHandler = new SimplePasswordValidationCallbackHandler();
-        // TODO @rap: Use real username and passwords
-        callbackHandler.setUsersMap(Collections.singletonMap("user", "password"));
-        return callbackHandler;
-    }
+		SpringBus cxfBus = new SpringBus();
+		cxfBus.getFeatures().add(loggingFeature);
 
-    @Override
-    public void addInterceptors(List<EndpointInterceptor> interceptors) {
-        interceptors.add(securityInterceptor());
-    }
+		return cxfBus;
+	}
+
+	@Bean
+	public LoggingFeature loggingFeature() {
+
+		LoggingFeature loggingFeature = new LoggingFeature();
+		loggingFeature.setPrettyLogging(true);
+
+		return loggingFeature;
+	}
+
+	@Bean
+	public Endpoint endpoint(Bus bus, NumberConversionSoapType numberConversionSoapType) {
+
+		EndpointImpl endpoint = new EndpointImpl(bus, numberConversionSoapType);
+		endpoint.publish("/service/accounts");
+
+		
+		return getCxfEndPoint(endpoint);
+	}
+
+	private org.apache.cxf.endpoint.Endpoint getCxfEndPoint(EndpointImpl endpoint) {
+		org.apache.cxf.endpoint.Endpoint cxfEndPoint = endpoint.getServer().getEndpoint();
+
+		Map inProps = new HashMap<>();
+		inProps.put(ConfigurationConstants.ACTION, ConfigurationConstants.USERNAME_TOKEN);
+		inProps.put(ConfigurationConstants.PASSWORD_TYPE, WSConstants.PW_TEXT);
+		inProps.put(ConfigurationConstants.PW_CALLBACK_CLASS, WebServiceConfig.class.getName());
+
+		WSS4JInInterceptor wssIn = new WSS4JInInterceptor(inProps);
+		cxfEndPoint.getInInterceptors().add(wssIn);
+		return cxfEndPoint;
+	}
+
 }
-
-
-*/
