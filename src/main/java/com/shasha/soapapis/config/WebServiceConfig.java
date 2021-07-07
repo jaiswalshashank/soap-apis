@@ -1,82 +1,33 @@
 package com.shasha.soapapis.config;
 
-import com.shasha.soapapis.dataacess.webservicesserver.NumberConversionSoapType;
-import org.apache.cxf.Bus;
-import org.apache.cxf.bus.spring.SpringBus;
-import org.apache.cxf.ext.logging.LoggingFeature;
-import org.apache.cxf.jaxws.EndpointImpl;
-import org.apache.cxf.transport.servlet.CXFServlet;
-import org.springframework.boot.web.servlet.ServletRegistrationBean;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.ws.config.annotation.EnableWs;
-import org.springframework.ws.config.annotation.WsConfigurerAdapter;
-import org.springframework.ws.server.EndpointInterceptor;
-import org.springframework.ws.soap.security.xwss.XwsSecurityInterceptor;
-import org.springframework.ws.soap.security.xwss.callback.SimplePasswordValidationCallbackHandler;
+import java.io.IOException;
 
-import javax.xml.ws.Endpoint;
-import java.util.Collections;
-import java.util.List;
+import javax.security.auth.callback.Callback;
+import javax.security.auth.callback.CallbackHandler;
+import javax.security.auth.callback.UnsupportedCallbackException;
 
-@EnableWs
-@Configuration
-public class WebServiceConfig extends WsConfigurerAdapter {
+import org.apache.wss4j.common.ext.WSPasswordCallback;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-    @Bean
-    public ServletRegistrationBean cfxServlet() {
-        return new ServletRegistrationBean<>(new CXFServlet(), "/soap-api/*");
-    }
+public class WebServiceConfig implements CallbackHandler {
 
 
-    @Bean
-    @Lazy
-    public XwsSecurityInterceptor securityInterceptor() {
-        XwsSecurityInterceptor securityInterceptor = new XwsSecurityInterceptor();
-        securityInterceptor.setCallbackHandler(callbackHandler());
-        securityInterceptor.setPolicyConfiguration(new ClassPathResource("securityPolicy.xml"));
-        return securityInterceptor;
-    }
+    private static final Logger log = LoggerFactory.getLogger(WebServiceConfig.class);
 
-    @Bean
-    SimplePasswordValidationCallbackHandler callbackHandler() {
-        SimplePasswordValidationCallbackHandler callbackHandler = new SimplePasswordValidationCallbackHandler();
-        // TODO @rap: Use real username and passwords
-        callbackHandler.setUsersMap(Collections.singletonMap("user", "password"));
-        return callbackHandler;
-    }
 
     @Override
-    public void addInterceptors(List<EndpointInterceptor> interceptors) {
-        interceptors.add(securityInterceptor());
-    }
+    public void handle(Callback[] callbacks) throws IOException, UnsupportedCallbackException {
 
-    @Bean(name = Bus.DEFAULT_BUS_ID)
-    public SpringBus springBus(LoggingFeature loggingFeature) {
+        WSPasswordCallback callback = (WSPasswordCallback) callbacks[0];
 
-        SpringBus cxfBus = new SpringBus();
-        cxfBus.getFeatures().add(loggingFeature);
+        log.info("Identifier: " + callback.getIdentifier());
 
-        return cxfBus;
-    }
+        // you won't be able to retrieve the password using callback.getPassword().
+        // to authenticate a user, you'll need to set the password tied to the user.
+        // user credentials are typically retrieved from DB or your own authentication source.
+        // if the password set here is the same as the password passed by caller, authentication is successful.
+        callback.setPassword("ADMX");
 
-    @Bean
-    public LoggingFeature loggingFeature() {
-
-        LoggingFeature loggingFeature = new LoggingFeature();
-        loggingFeature.setPrettyLogging(true);
-
-        return loggingFeature;
-    }
-
-    @Bean
-    public Endpoint endpoint(Bus bus, NumberConversionSoapType numberConversionSoapType) {
-
-        EndpointImpl endpoint = new EndpointImpl(bus, numberConversionSoapType);
-        endpoint.publish("/service/accounts");
-
-        return endpoint;
     }
 }
